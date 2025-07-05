@@ -6,7 +6,12 @@ using System.Threading.Tasks;
 using AuthService.Application.Common.Auth;
 using AuthService.Application.DTOs;
 using AuthService.Application.Interfaces;
+using AuthService.Domain.Entities;
+using AuthService.Infrastructure.Auth;
 using AuthService.Infrastructure.Data;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Server.HttpSys;
+using Microsoft.EntityFrameworkCore;
 
 
 namespace AuthService.Infrastructure.Services
@@ -21,24 +26,63 @@ namespace AuthService.Infrastructure.Services
             _jwtToken = jwtToken;
         }
 
-        public Task<ProfileResponse> GetProfileAsync(Guid userId)
+        public async Task<ProfileResponse> GetProfileAsync(Guid userId)
         {
-            throw new NotImplementedException();
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                throw new Exception("User not found.");
+
+            return new ProfileResponse(user.Email, user.Name);
         }
 
-        public Task<AuthResponse> LoginAsync(LoginRequest request)
+
+        public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
-            throw new NotImplementedException();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+            if (user == null)
+                throw new Exception("Invalid credentials.");
+
+            var result = await _context.Users.FirstOrDefaultAsync(u => u.Password == request.Password);
+            if (result == null)
+                throw new Exception("Invalid credentials.");
+
+            var token = _jwtToken.GenerateToken(user);
+
+            return new AuthResponse(token);
         }
 
-        public Task RegisterAsync(RegisterRequest request)
+
+        public async Task RegisterAsync(RegisterRequest request)
         {
-            throw new NotImplementedException();
+            var existingUser = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email == request.Email);
+
+            if (existingUser != null)
+                throw new Exception("Email already registered.");
+
+            var user = new User
+            {
+                Email = request.Email,
+                Name = request.Name,
+                Password = request.Password,
+            };
+
+           
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
         }
 
-        public Task UpdateProfileAsync(Guid userId, string newName)
+
+        public async Task UpdateProfileAsync(Guid userId, string newName)
         {
-            throw new NotImplementedException();
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                throw new Exception("User not found.");
+
+            user.Name = newName;
+            await _context.SaveChangesAsync();
         }
+
     }
 }

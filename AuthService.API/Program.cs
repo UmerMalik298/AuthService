@@ -1,9 +1,46 @@
+using System.Text;
+using AuthService.Application.Common.Auth;
+using AuthService.Application.Interfaces;
+using AuthService.Infrastructure.Auth;
+using AuthService.Infrastructure.Data;
+using AuthService.Infrastructure.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseInMemoryDatabase("AuthDb"));
+
+builder.Services.AddAuthentication("Bearer")
+    .AddJwtBearer("Bearer", options =>
+    {
+        var config = builder.Configuration.GetSection("JwtSettings");
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = config["Issuer"],
+            ValidAudience = config["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Secret"]))
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+builder.Services.AddControllers();
+
+
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -19,6 +56,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
 
 var summaries = new[]
 {
